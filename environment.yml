@@ -1,16 +1,42 @@
-# -------------------------------------------------------------------
-# Conda环境定义文件：负责Python解释器、CUDA和PyTorch等底层依赖
-# -------------------------------------------------------------------
-name: satellite-seg-env-py39
+# =================================================================================
+# Conda 环境配置文件 (environment.yml)
+# =================================================================================
+#
+# 使用此文件来创建一个隔离且可复现的Conda环境。
+#
+# 创建环境:
+# conda env create -f environment.yml
+#
+# 激活环境:
+# conda activate seg_39
+#
+# 更新环境:
+# conda env update -f environment.yml --prune
+#
+# 删除环境:
+# conda env remove -n seg_39
+
+name: seg_39
 
 channels:
   - pytorch
+  - nvidia
   - conda-forge
   - defaults
 
 dependencies:
   - python=3.9
   - pip
-  - pytorch=2.5.1  
-  - torchvision=0.20.1
-  - pytorch-cuda=12.1
+  - pytorch::pytorch=2.5.1  
+  - pytorch::torchaudio=2.5.1
+  - pytorch::torchvision=0.20.1
+  - pytorch::pytorch-cuda=12.1
+
+  # --- 地理空间数据处理库 ---
+  - conda-forge::gdal
+  - conda-forge::rasterio
+
+   # --- 其他Python库 (通过pip在Conda环境中安装) ---
+  - pip:
+    # 在新的工作流中，使用 "pip install -e ." 来安装pyproject.toml 中定义的依赖。
+    - -e .

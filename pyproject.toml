@@ -1,30 +1,71 @@
-# -------------------------------------------------------------------
-# Python项目定义文件：负责管理所有Python包的依赖
-# -------------------------------------------------------------------
+# =================================================================================
+# Python 项目配置文件 (pyproject.toml)
+# =================================================================================
+#
+# 安装项目依赖:
+# 在激活Conda环境后，运行以下命令来安装所有在[project]中定义的依赖:
+# pip install -e .
+#
+# 安装开发依赖:
+# pip install -e ".[dev]"
+#
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
-name = "satellite-semantic-segmentation"
+name = "satellite-image-semantic-segmentation"
 version = "0.1.0"
-description = "A project for semantic segmentation of satellite imagery using PyTorch."
+description = "A project for semantic segmentation of satellite images using PyTorch."
+authors = [
+  { name = "he.cl", email = "your.email@example.com" },
+]
 readme = "README.md"
 requires-python = ">=3.9"
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
 
 # --- 核心/运行时依赖 (dependencies) ---
+# 项目运行所必需的包
 dependencies = [
     "numpy",
+    "Pillow",
     "matplotlib",
-    "scikit-learn",
-    "scikit-image",
-    "opencv-python",
-    "tqdm"
+    "tqdm",
+    "PyYAML",
+    "segmentation-models-pytorch",
+    "huggingface-hub",
+    "timm",
+    "onnx",
+    "onnxruntime"
 ]
 
 # --- 开发时依赖 (dev-dependencies) ---
+[project.optional-dependencies]
 dev = [
     "notebook",
     "pytest",
     "black",
     "flake8",
     "isort",
-    "pip-tools",     # 用于从本项目生成 requirements.txt
+    "ipython",
+    "jupyter",
+    "pip-tools" 
 ]
+
+[tool.black]
+line-length = 120
+target-version = ['py39']
+
+[tool.setuptools]
+packages = { find = { where = ["src"] } }

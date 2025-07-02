@@ -1,3 +1,152 @@
+# ===================================================================
+# .gitignore for Python Projects
+# ===================================================================
+
+# 1. Project-specific files
+# ===================================================================
+# 忽略大型数据文件、模型权重和编译后的模型
 *.tif
-*.onnx
+*.tiff
 *.pth
+*.onnx
+
+
+# 2. Byte-compiled / optimized / DLL files
+# ===================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+
+
+# 3. C extensions
+# ===================================================================
+*.so
+
+
+# 4. Distribution / packaging
+# ===================================================================
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+
+# 5. PyInstaller
+# ===================================================================
+# Usually these files are written by a python script from a template
+# before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+
+# 6. Installer logs
+# ===================================================================
+pip-log.txt
+pip-delete-this-directory.txt
+
+
+# 7. Unit test / coverage reports
+# ===================================================================
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+
+# 8. Translations
+# ===================================================================
+*.mo
+*.pot
+
+
+# 9. Django stuff
+# ===================================================================
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+
+# 10. Flask stuff
+# ===================================================================
+instance/
+.webassets-cache
+
+
+# 11. Scrapy stuff
+# ===================================================================
+.scrapy
+
+
+# 12. Sphinx documentation
+# ===================================================================
+docs/_build/
+
+
+# 13. Jupyter Notebook
+# ===================================================================
+.ipynb_checkpoints
+
+
+# 14. IDE / Editor specific
+# ===================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+
+
+# 15. Environments
+# ===================================================================
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+
+# 16. mypy
+# ===================================================================
+.mypy_cache/
+
+
+# 17. Data, output and model weight folders
+# ===================================================================
+# You might want to track specific model weights
+# but generally not all outputs.
+# 取消下面行的注释以忽略整个文件夹
+# data/*
+# outputs/*
+# weights/*
+
+# 如果您想跟踪文件夹本身但忽略其内容，可以使用下面的模式
+# data/*
+# !data/.gitkeep
+# outputs/*
+# !outputs/.gitkeep
+# weights/*
+# !weights/.gitkeep

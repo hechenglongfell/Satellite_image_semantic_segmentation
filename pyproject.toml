@@ -47,7 +47,8 @@ dependencies = [
     "huggingface-hub",
     "timm",
     "onnx",
-    "onnxruntime"
+    "onnxruntime",
+    "pyyaml"
 ]
 
 # --- 开发时依赖 (dev-dependencies) ---

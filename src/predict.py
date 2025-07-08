@@ -20,6 +20,7 @@ import torchvision.transforms as T
 from tqdm import tqdm
 import os
 
+from utils.logger import setup_logger
 from networks.model import build_unet
 
 # --- 配置 ---
@@ -36,6 +37,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 PATCH_SIZE = 512  # 每次处理的小块尺寸 (像素)，可根据显存大小调整
 OVERLAP_RATE = 0.25  # 滑窗重叠率，建议0.25 (即25%的重叠)
 
+logger = setup_logger(__name__, "predict.log")
+
 
 def main():
 
@@ -48,28 +51,24 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # --- 1. 加载模型和定义转换 ---
-    print(f"正在加载模型: {WEIGHTS_PATH}")
+    logger.info(f"正在加载模型: {WEIGHTS_PATH}")
     model = build_unet(device=DEVICE)
     model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=DEVICE))
     model.eval()
 
-    transform = T.Compose(
-        [T.ToTensor(), T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])]
-    )
+    transform = T.Compose([T.ToTensor(), T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
     # --- 2. 使用 Rasterio 和重叠滑窗策略处理大图 ---
-    print(f"正在打开影像: {INPUT_IMAGE_PATH}")
+    logger.info(f"正在打开影像: {INPUT_IMAGE_PATH}")
     with rasterio.open(INPUT_IMAGE_PATH) as src:
         meta = src.meta
         width, height = src.width, src.height
-        print(f"影像尺寸: {width}x{height}")
-
+        logger.info(f"影像尺寸: {width}x{height}")
         # 更新输出文件的元数据
         meta.update(count=1, dtype="uint8", compress="lzw")
 
         with rasterio.open(OUTPUT_IMAGE_PATH, "w", **meta) as dst:
-            print(f"正在创建输出文件: {OUTPUT_IMAGE_PATH}")
-
+            logger.info(f"正在创建输出文件: {OUTPUT_IMAGE_PATH}")
             # --- 计算滑窗步长和坐标 ---
             if OVERLAP_RATE < 0 or OVERLAP_RATE >= 0.5:
                 raise ValueError("OVERLAP_RATE 必须在 [0, 0.5) 范围内")
@@ -90,7 +89,7 @@ def main():
                 y_coords.append(height - PATCH_SIZE)
 
             total_patches = len(y_coords) * len(x_coords)
-            progress_bar = tqdm(total=total_patches, desc="预测中：")
+            progress_bar = tqdm(total=total_patches, desc="预测中")
 
             # --- 使用新的滑窗坐标进行循环 ---
             for y_start in y_coords:
@@ -140,12 +139,15 @@ def main():
 
             progress_bar.close()
 
-    print(f"\n预测完成！结果已保存至: {OUTPUT_IMAGE_PATH}")
+    logger.info(f"预测完成！结果已保存至: {OUTPUT_IMAGE_PATH}")
 
 
 if __name__ == "__main__":
+    logger.info("--- 预测任务开始！ ---")
+    logger.info(f"模型文件： {INPUT_IMAGE_PATH}")
     # 检查输入文件是否存在
     if not os.path.exists(INPUT_IMAGE_PATH):
-        print(f"错误: 输入文件不存在 -> {INPUT_IMAGE_PATH}")
+        logger.error(f"错误: 模型文件不存在 ->： {INPUT_IMAGE_PATH}")
     else:
         main()
+        logger.info("--- 预测任务完成！ ---")

@@ -4,33 +4,38 @@
 """
 model.py
 
-这个文件定义了用于图像分割的模型构建函数。
-主要功能是利用 segmentation_models_pytorch 库快速构建一个 U-Net 模型。
-可以轻松地替换骨干网络并加载预训练权重。
+定义用于图像分割的模型构建函数。
+主要功能是利用 segmentation_models_pytorch 库快速构建一个 U-Net 模型。可以方便地替换骨干网络并加载预训练权重。
 
-Author: he.cl
-Date: 2025-06-23
+Author he.cl
+Date 2025-06-25
 """
 
 import torch
 import segmentation_models_pytorch as smp
+import os
+import sys
 
-from config import global_config
 
-
-def build_unet(device):
+def build_unet(device, config):
     """
     构建 U-Net 模型。
     使用 segmentation_models_pytorch 库可以轻松替换骨干网络。
-    """
-    # 'resnet34' 是一个常用的骨干网络，可以根据情况换成其他的网络。
-    # 'imagenet' 表示使用在 ImageNet 上预训练的权重来初始化骨干网络
 
+    Args:
+        device: torch.device, 模型将被移动到的设备 (CPU or GPU)。
+        config (dict): 包含模型参数的配置字典。
+
+    Returns:
+        torch.nn.Module: 构建好的模型。
+    """
+    # 从传入的 config 字典中获取参数，而不是全局变量
     model = smp.Unet(
-        encoder_name=global_config["vars"]["encoder"],  # 选择主干网络
-        encoder_weights=global_config["vars"]["encoder_weights"],  # 使用预训练权重，使用 ImageNet 数据集上训练好的权重
-        in_channels=global_config["vars"]["num_channels"],  # 输入通道数 (RGB 图像为 3)
-        classes=global_config["vars"]["num_classes"],  # 类别数 (例如，只分割水体，背景为0，水体为1，则为1)
+        encoder_name=config["vars"]["encoder"],
+        encoder_weights=config["vars"]["encoder_weights"],
+        in_channels=config["vars"]["num_channels"],
+        classes=config["vars"]["num_classes"],
+        activation=config["vars"].get("activation", None),  # 使用 .get() 增加灵活性
     )
 
     # 将模型移动到指定设备 (CPU or GPU)
@@ -41,18 +46,29 @@ def build_unet(device):
 
 if __name__ == "__main__":
 
-    device = torch.device(global_config["vars"]["device"])
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    SRC_ROOT = os.path.dirname(SCRIPT_DIR)
+    sys.path.append(SRC_ROOT)
 
-    model = build_unet(device=device)
+    from config import load_config
+
+    config_path = os.path.join(SRC_ROOT, "..", "config.yaml")
+    config = load_config(config_path)
+
+    device = torch.device(config["vars"]["device"])
+
+    # 调用更新后的函数
+    model = build_unet(device=device, config=config)
+
     dummy_input = torch.randn(
-        global_config["vars"]["img_num"],
-        global_config["vars"]["num_channels"],
-        global_config["vars"]["img_size"],
-        global_config["vars"]["img_size"],
-        # (img_num（表示一次性给模型喂入 2 张图片）, num_channels, img_size（图片高）, img_size（图片宽）)
+        config["vars"]["img_num"],
+        config["vars"]["num_channels"],
+        config["vars"]["img_size"],
+        config["vars"]["img_size"],
     ).to(device=device)
+
     output = model(dummy_input)
+
     print(f"模型构建成功!")
     print(f"输入尺寸: {dummy_input.shape}")
     print(f"输出尺寸: {output.shape}")
-    # 对于 classes=1, 输出 shape 为 [2, 1, 256, 256]

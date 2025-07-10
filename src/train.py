@@ -5,9 +5,9 @@
 train.py
 
 模型训练。
-
-Author: he.cl
-Date: 2025-06-24
+此版本已更新，支持通过命令行参数覆盖YAML配置。
+Author he.cl
+Date 2025-06-25
 """
 
 import torch
@@ -16,8 +16,9 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from datetime import datetime
+import argparse
 
-from config import global_config
+from config import load_config
 from utils.logger import setup_logger
 
 from utils.data_loader import RemoteSensingDataset, get_train_transforms, get_val_transforms
@@ -26,7 +27,8 @@ from networks.model import build_unet
 logger = setup_logger(__name__, "train.log")
 
 
-def train_one_epoch(model, dataloader, optimizer, loss_fn, device):
+def train_one_epoch(model, dataloader, optimizer, loss_fn, device, logger):
+    """在单个epoch上训练模型"""
     model.train()  # 设置为训练模式
     epoch_loss = 0.0
     progress_bar = tqdm(dataloader, desc="Training")
@@ -51,107 +53,118 @@ def train_one_epoch(model, dataloader, optimizer, loss_fn, device):
 
     avg_loss = epoch_loss / len(dataloader)
     logger.info(f"训练集平均损失值: {avg_loss:.4f}")
-
     return avg_loss
 
 
-def evaluate(model, dataloader, loss_fn, device):
-    """
-    在验证集上评估模型。
-    Args:
-        model: 要评估的模型。
-        dataloader: 验证数据加载器。
-        loss_fn: 损失函数。
-        device: 计算设备 (CPU or GPU)。
-    Returns:
-        验证集上的平均损失。
-    """
-    # 1. 设置为评估模式
-    # 这会关闭 Dropout 和 BatchNorm 等层的训练行为，确保评估结果的确定性
-    model.eval()
-
+def evaluate(model, dataloader, loss_fn, device, logger):
+    """在验证集上评估模型"""
+    model.eval()  # 设置为评估模式
     total_loss = 0.0
     progress_bar = tqdm(dataloader, desc="Evaluating")
 
-    # 2. 关闭梯度计算
-    # 在评估阶段，我们不需要计算梯度，这样可以节省大量计算和内存资源
-    with torch.no_grad():
+    with torch.no_grad():  # 关闭梯度计算
         for images, masks in progress_bar:
-            # 将数据移动到指定设备
             images = images.to(device)
             masks = masks.float().to(device)
-
-            # 前向传播，获取模型输出
             outputs = model(images)
-
-            # 计算损失
             loss = loss_fn(outputs, masks)
-
-            # 累加批次损失
             total_loss += loss.item()
             progress_bar.set_postfix(loss=loss.item())
 
-    # 3. 切换回训练模式
-    # 在评估结束后，将模型恢复到训练模式，以便下一个 epoch 的训练
-    model.train()
-
-    # 计算并返回整个验证集的平均损失
-    return total_loss / len(dataloader)
+    avg_loss = total_loss / len(dataloader)
+    logger.info(f"验证集平均损失值: {avg_loss:.4f}")
+    model.train()  # 恢复训练模式
+    return avg_loss
 
 
-def main():
+def main(config):
+    """
+    主训练函数，接收配置字典作为参数。
+    """
+    # --- 1. 设置计算设备 ---
+    device = torch.device(config["vars"]["device"])
 
-    # --- 从全局配置加载参数 ---
-
-    device = torch.device(global_config["vars"]["device"])
-    learning_rate = global_config["vars"]["learning_rate"]
-    batch_size = global_config["vars"]["batch_size"]
-    epochs = global_config["vars"]["epochs"]
-
-    # 训练超参数配置
+    # --- 2. 超参数配置 ---
     logger.info("--- 训练超参数配置 ---")
     logger.info(f"计算设备: {device}")
-    logger.info(f"初始学习率: {learning_rate}")
-    logger.info(f"批次大小: {batch_size}")
-    logger.info(f"训练轮次: {epochs}")
+    logger.info(f"模型架构: {config['vars']['architecture']}")
+    logger.info(f"骨干网络: {config['vars']['encoder']}")
+    logger.info(f"初始学习率: {config['vars']['learning_rate']}")
+    logger.info(f"批次大小: {config['vars']['batch_size']}")
+    logger.info(f"训练轮次: {config['vars']['epochs']}")
     logger.info("-----------------------------")
 
-    # --- 1. 准备数据 ---
-    train_dataset = RemoteSensingDataset(data_dir=global_config["paths"]["train_dir"], transform=get_train_transforms())
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+    # --- 3. 准备数据 ---
+    train_dataset = RemoteSensingDataset(data_dir=config["paths"]["train_dir"], transform=get_train_transforms(config))
+    train_loader = DataLoader(
+        train_dataset, batch_size=config["vars"]["batch_size"], shuffle=True, num_workers=4, pin_memory=True
+    )
 
-    val_dataset = RemoteSensingDataset(data_dir=global_config["paths"]["val_dir"], transform=get_val_transforms())
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+    val_dataset = RemoteSensingDataset(data_dir=config["paths"]["val_dir"], transform=get_val_transforms(config))
+    val_loader = DataLoader(
+        val_dataset, batch_size=config["vars"]["batch_size"], shuffle=False, num_workers=4, pin_memory=True
+    )
 
     logger.info(f"训练集样本数: {len(train_dataset)}, 验证集样本数: {len(val_dataset)}")
 
-    # --- 2. 构建模型、损失函数和优化器 ---
-    model = build_unet(device=device)
+    # --- 4. 构建模型、损失函数和优化器 ---
+    model = build_unet(device=device, config=config)
     loss_fn = torch.nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=config["vars"]["learning_rate"])
 
-    # --- 3. 训练循环 ---
+    # --- 5. 训练循环 ---
     now = datetime.now()
     timestamp_str = now.strftime("%Y%m%d_%H%M%S")
-    save_model = os.path.join(global_config["paths"]["output_dir"], f"best_model_{timestamp_str}.pth")
-    os.makedirs(os.path.dirname(save_model), exist_ok=True)
-    best_val_loss = float("inf")  # 初始化一个无穷大的最佳损失值
+    model_name = f"{config['vars']['architecture']}_{config['vars']['encoder']}"
+    save_dir = config["paths"]["output_dir"]
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, f"best_model_{model_name}_{timestamp_str}.pth")
 
-    for epoch in range(epochs):
-        logger.info(f"--- 开始第{epoch + 1}/{epochs} epoch 训练！ ---")
-        train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, device)
-        val_loss = evaluate(model, val_loader, loss_fn, device)
-        logger.info(f"第{epoch + 1} epoch 训练结果: 训练集损失值: {train_loss:.4f}, 验证集损失值: {val_loss:.4f}")
+    best_val_loss = float("inf")
+
+    for epoch in range(config["vars"]["epochs"]):
+        logger.info(f"--- 开始第{epoch + 1}/{config['vars']['epochs']} epoch 训练！ ---")
+
+        train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, device, logger)
+        val_loss = evaluate(model, val_loader, loss_fn, device, logger)
+
+        logger.info(f"第{epoch + 1} epoch 结束. 训练损失: {train_loss:.4f}, 验证损失: {val_loss:.4f}")
 
         # 保存最佳模型
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save(model.state_dict(), save_model)
-            logger.info(f"最佳验证集损失值: {best_val_loss:.4f}。 保存当前模型!")
+            torch.save(model.state_dict(), save_path)
+            logger.info(f"验证集损失值提升至: {best_val_loss:.4f}。保存当前最佳模型至: {save_path}")
 
-    # --- 4. 训练结束 ---
-    logger.info(f"训练结束! 模型保存位置：{save_model}")
+    logger.info(f"训练结束! 最终模型保存在：{save_path}")
+
+
+def get_args():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(description="训练语义分割模型...")
+    parser.add_argument("--config", type=str, default="config.yaml", help="配置文件的路径")
+    parser.add_argument("--lr", type=float, help="学习率")
+    parser.add_argument("--batch_size", type=int, help="批次大小")
+    parser.add_argument("--epochs", type=int, help="训练轮次")
+    parser.add_argument("--device", type=str, help="计算设备 (例如 'cuda' 或 'cpu')")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    main()
+    args = get_args()
+
+    # 1. 从 YAML 文件加载基础配置
+    config = load_config(args.config)
+
+    # 2. 使用命令行参数覆盖配置（如果提供了的话）
+    if args.lr:
+        config["vars"]["learning_rate"] = args.lr
+    if args.batch_size:
+        config["vars"]["batch_size"] = args.batch_size
+    if args.epochs:
+        config["vars"]["epochs"] = args.epochs
+    if args.device:
+        config["vars"]["device"] = args.device
+
+    # 3. 运行主训练函数
+    main(config)

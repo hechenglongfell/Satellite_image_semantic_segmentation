@@ -4,10 +4,9 @@
 """
 data_loader.py
 
-这个文件创建一个自定义的数据集加载器 (Dataset Loader)，专门用于处理遥感图像分割任务。
-
-Author: he.cl
-Date: 2025-06-23
+自定义的数据集加载器 (Dataset Loader)
+Author he.cl
+Date 2025-06-25
 """
 
 import os
@@ -16,55 +15,43 @@ import torch
 from torch.utils.data import Dataset
 from PIL import Image
 import numpy as np
-import torchvision.transforms as T
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
-from config import global_config
 
-
-def get_train_transforms():
+def get_train_transforms(config):
     """
-    定义训练集使用的数据增强流程：增强过程在内存中进行、随机地应用到每个批次的数据上。
-
+    定义训练集使用的数据增强流程
+    Args:
+        config 配置字典
     """
     return A.Compose(
         [
-            # --- 几何变换 ---
-            # 50%的概率进行水平翻转
             A.HorizontalFlip(p=0.5),
-            # 50%的概率进行垂直翻转
             A.VerticalFlip(p=0.5),
-            # 50%的概率进行90度随机旋转（0, 90, 180, 270度）
             A.RandomRotate90(p=0.5),
-            # --- 色彩变换 ---
-            # 随机调整亮度、对比度、饱和度和色相，模拟不同光照和季节条件
             A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.8),
-            # 随机高斯噪声
             A.GaussNoise(p=0.2),
-            # --- 核心变换 ---
-            # 归一化，使用ImageNet的均值和标准差
-            A.Normalize(mean=global_config["vars"]["mean"], std=global_config["vars"]["std"]),
-            # 将图像和掩码转换为PyTorch张量
+            A.Normalize(mean=config["vars"]["mean"], std=config["vars"]["std"]),
             ToTensorV2(),
         ]
     )
 
 
-def get_val_transforms():
+def get_val_transforms(config):
     """
-    定义验证集/测试集使用的变换流程：通常只包含归一化和转换为张量，不进行随机增强，以保证评估结果的一致性。
-
+    定义验证集/测试集使用的变换流程。
+    Args:
+        config 配置字典
     """
     return A.Compose(
         [
-            A.Normalize(mean=global_config["vars"]["mean"], std=global_config["vars"]["std"]),
+            A.Normalize(mean=config["vars"]["mean"], std=config["vars"]["std"]),
             ToTensorV2(),
         ]
     )
 
 
-# 创建RemoteSensingDataset类，继承了torch.utils.data 的 Dataset类
 class RemoteSensingDataset(Dataset):
     def __init__(self, data_dir, transform=None):
         """
@@ -76,15 +63,20 @@ class RemoteSensingDataset(Dataset):
         self.mask_dir = os.path.join(data_dir, "masks")
         self.transform = transform
 
-        # 1. 找到所有的图像文件路径
-        image_pattern = os.path.join(self.image_dir, "*", "*.tif")
-        self.image_files = sorted(glob.glob(image_pattern))
+        # 查找所有图像文件路径, 兼容嵌套和非嵌套两种情况
+        image_files = glob.glob(os.path.join(self.image_dir, "*.tif"))
+        if not image_files:
+            image_files.extend(glob.glob(os.path.join(self.image_dir, "*", "*.tif")))
+        self.image_files = sorted(image_files)
 
-        # 2. 然后根据图像文件名，构造出对应的掩码文件路径
+        if not self.image_files:
+            print(f"警告: 在目录 '{self.image_dir}' 中没有找到 .tif 格式的图像文件。")
+
+        # 根据图像文件名，构造出对应的掩码文件路径
         self.mask_files = []
         for img_path in self.image_files:
-            base_filename = os.path.basename(img_path)
-            mask_path = os.path.join(self.mask_dir, base_filename)
+            relative_path = os.path.relpath(img_path, self.image_dir)
+            mask_path = os.path.join(self.mask_dir, relative_path)
 
             if not os.path.exists(mask_path):
                 print(f"警告：找不到图像 '{img_path}' 对应的掩码 '{mask_path}'")
@@ -98,19 +90,20 @@ class RemoteSensingDataset(Dataset):
         img_path = self.image_files[idx]
         mask_path = self.mask_files[idx]
 
-        # 读取图像和掩码
-        image = Image.open(img_path).convert("RGB")
-        mask = Image.open(mask_path).convert("L")
+        # 使用 numpy array 读取，以配合 albumentations
+        image = np.array(Image.open(img_path).convert("RGB"))
+        mask = np.array(Image.open(mask_path).convert("L"))
 
-        # 将掩码转换为 numpy 数组，并将像素值归一化到 0 或 1
-        mask = np.array(mask)
+        # 将掩码值从 [0, 255] 映射到 [0, 1]
         mask[mask == 255] = 1
 
-        # 应用数据增强和转换
         if self.transform:
-            image = self.transform(image)
+            # 同时对图像和掩码应用变换
+            augmented = self.transform(image=image, mask=mask)
+            image = augmented["image"]
+            mask = augmented["mask"]
 
-        # 将 mask 转换为 Tensor
-        mask = torch.from_numpy(mask).long().unsqueeze(0)
-
-        return image, mask
+        # ToTensorV2 已经处理了图像的维度顺序 (H, W, C) -> (C, H, W)
+        # 掩码需要增加一个通道维度以匹配模型输出 (H, W) -> (1, H, W)
+        # 对于 BCEWithLogitsLoss，mask 需要是 float 类型
+        return image, torch.from_numpy(mask).unsqueeze(0).float()

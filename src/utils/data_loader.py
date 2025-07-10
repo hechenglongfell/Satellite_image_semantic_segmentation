@@ -17,8 +17,51 @@ from torch.utils.data import Dataset
 from PIL import Image
 import numpy as np
 import torchvision.transforms as T
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 from config import global_config
+
+
+def get_train_transforms():
+    """
+    定义训练集使用的数据增强流程：增强过程在内存中进行、随机地应用到每个批次的数据上。
+
+    """
+    return A.Compose(
+        [
+            # --- 几何变换 ---
+            # 50%的概率进行水平翻转
+            A.HorizontalFlip(p=0.5),
+            # 50%的概率进行垂直翻转
+            A.VerticalFlip(p=0.5),
+            # 50%的概率进行90度随机旋转（0, 90, 180, 270度）
+            A.RandomRotate90(p=0.5),
+            # --- 色彩变换 ---
+            # 随机调整亮度、对比度、饱和度和色相，模拟不同光照和季节条件
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.8),
+            # 随机高斯噪声
+            A.GaussNoise(p=0.2),
+            # --- 核心变换 ---
+            # 归一化，使用ImageNet的均值和标准差
+            A.Normalize(mean=global_config["vars"]["mean"], std=global_config["vars"]["std"]),
+            # 将图像和掩码转换为PyTorch张量
+            ToTensorV2(),
+        ]
+    )
+
+
+def get_val_transforms():
+    """
+    定义验证集/测试集使用的变换流程：通常只包含归一化和转换为张量，不进行随机增强，以保证评估结果的一致性。
+
+    """
+    return A.Compose(
+        [
+            A.Normalize(mean=global_config["vars"]["mean"], std=global_config["vars"]["std"]),
+            ToTensorV2(),
+        ]
+    )
 
 
 # 创建RemoteSensingDataset类，继承了torch.utils.data 的 Dataset类
@@ -71,8 +114,3 @@ class RemoteSensingDataset(Dataset):
         mask = torch.from_numpy(mask).long().unsqueeze(0)
 
         return image, mask
-
-
-# 定义基础的转换
-# 注意：对于遥感影像，归一化的均值和标准差最好根据你自己的数据集计算
-transform = T.Compose([T.ToTensor(), T.Normalize(mean=global_config["vars"]["mean"], std=global_config["vars"]["std"])])

@@ -48,7 +48,8 @@ dependencies = [
     "timm",
     "onnx",
     "onnxruntime",
-    "pyyaml"
+    "pyyaml",
+    "albumentations"
 ]
 
 # --- 开发时依赖 (dev-dependencies) ---

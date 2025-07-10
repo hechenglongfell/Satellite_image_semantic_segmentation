@@ -20,7 +20,7 @@ from datetime import datetime
 from config import global_config
 from utils.logger import setup_logger
 
-from utils.data_loader import RemoteSensingDataset, transform
+from utils.data_loader import RemoteSensingDataset, get_train_transforms, get_val_transforms
 from networks.model import build_unet
 
 logger = setup_logger(__name__, "train.log")
@@ -117,10 +117,10 @@ def main():
     logger.info("-----------------------------")
 
     # --- 1. 准备数据 ---
-    train_dataset = RemoteSensingDataset(data_dir=global_config["paths"]["train_dir"], transform=transform)
+    train_dataset = RemoteSensingDataset(data_dir=global_config["paths"]["train_dir"], transform=get_train_transforms())
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
 
-    val_dataset = RemoteSensingDataset(data_dir=global_config["paths"]["val_dir"], transform=transform)
+    val_dataset = RemoteSensingDataset(data_dir=global_config["paths"]["val_dir"], transform=get_val_transforms())
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
     logger.info(f"训练集样本数: {len(train_dataset)}, 验证集样本数: {len(val_dataset)}")

@@ -19,24 +19,9 @@ from datetime import datetime
 
 from config import global_config
 from utils.logger import setup_logger
+
 from utils.data_loader import RemoteSensingDataset, transform
 from networks.model import build_unet
-
-# --- 1. 超参数和配置 ---
-LEARNING_RATE = 1e-4  # 学习率初始值，它控制模型每次更新权重时的“步长”。太大会导致模型不稳定，太小则训练速度过慢。
-BATCH_SIZE = 4  # 一次处理的样本数量，并计算这4张图片的平均损失，然后更新一次权重。
-NUM_EPOCHS = 10  # 一个完整训练的重复次数
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-DATA_DIR_TRAIN = os.path.join(PROJECT_ROOT, "data", "train")
-DATA_DIR_VAL = os.path.join(PROJECT_ROOT, "data", "val")
-
-now = datetime.now()
-timestamp_str = now.strftime("%Y%m%d_%H%M%S")
-
-WEIGHTS_SAVE_PATH = os.path.join(PROJECT_ROOT, "weights", f"best_model_{timestamp_str}.pth")
 
 logger = setup_logger(__name__, "train.log")
 
@@ -116,42 +101,56 @@ def evaluate(model, dataloader, loss_fn, device):
 
 def main():
 
-    # 记录本次训练超参数
-    logger.info("--- 本次训练超参数 ---")
-    logger.info(f"计算设备: {DEVICE}")
-    logger.info(f"初始学习率: {LEARNING_RATE}")
-    logger.info(f"一次处理的样本数: {BATCH_SIZE}")
-    logger.info(f"模型训练次数: {NUM_EPOCHS}")
-    logger.info("-----------------------------")
-    # --- 1. 准备数据 ---
-    train_dataset = RemoteSensingDataset(data_dir=DATA_DIR_TRAIN, transform=transform)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
+    # --- 从全局配置加载参数 ---
 
-    val_dataset = RemoteSensingDataset(data_dir=DATA_DIR_VAL, transform=transform)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
+    device = torch.device(global_config["vars"]["device"])
+    learning_rate = global_config["vars"]["learning_rate"]
+    batch_size = global_config["vars"]["batch_size"]
+    epochs = global_config["vars"]["epochs"]
+
+    # 训练超参数配置
+    logger.info("--- 训练超参数配置 ---")
+    logger.info(f"计算设备: {device}")
+    logger.info(f"初始学习率: {learning_rate}")
+    logger.info(f"批次大小: {batch_size}")
+    logger.info(f"训练轮次: {epochs}")
+    logger.info("-----------------------------")
+
+    # --- 1. 准备数据 ---
+    train_dataset = RemoteSensingDataset(data_dir=global_config["paths"]["train_dir"], transform=transform)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+
+    val_dataset = RemoteSensingDataset(data_dir=global_config["paths"]["val_dir"], transform=transform)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+
+    logger.info(f"训练集样本数: {len(train_dataset)}, 验证集样本数: {len(val_dataset)}")
 
     # --- 2. 构建模型、损失函数和优化器 ---
-    model = build_unet(device=DEVICE)
+    model = build_unet(device=device)
     loss_fn = torch.nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     # --- 3. 训练循环 ---
+    now = datetime.now()
+    timestamp_str = now.strftime("%Y%m%d_%H%M%S")
+    save_model = os.path.join(global_config["paths"]["output_dir"], f"best_model_{timestamp_str}.pth")
+    os.makedirs(os.path.dirname(save_model), exist_ok=True)
     best_val_loss = float("inf")  # 初始化一个无穷大的最佳损失值
 
-    for epoch in range(NUM_EPOCHS):
-        logger.info(f"--- 开始第{epoch + 1}/{NUM_EPOCHS} epoch 训练！ ---")
-        train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, DEVICE)
-        val_loss = evaluate(model, val_loader, loss_fn, DEVICE)
+    for epoch in range(epochs):
+        logger.info(f"--- 开始第{epoch + 1}/{epochs} epoch 训练！ ---")
+        train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, device)
+        val_loss = evaluate(model, val_loader, loss_fn, device)
         logger.info(f"第{epoch + 1} epoch 训练结果: 训练集损失值: {train_loss:.4f}, 验证集损失值: {val_loss:.4f}")
 
-        # --- 4. 保存最佳模型 ---
+        # 保存最佳模型
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save(model.state_dict(), WEIGHTS_SAVE_PATH)
+            torch.save(model.state_dict(), save_model)
             logger.info(f"最佳验证集损失值: {best_val_loss:.4f}。 保存当前模型!")
 
-    # 训练结束
-    logger.info("训练结束! 模型保存位置：{WEIGHTS_SAVE_PATH}")
+    # --- 4. 训练结束 ---
+    logger.info(f"训练结束! 模型保存位置：{save_model}")
 
 
 if __name__ == "__main__":

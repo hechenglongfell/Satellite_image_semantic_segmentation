@@ -15,6 +15,8 @@ Date: 2025-06-23
 import torch
 import segmentation_models_pytorch as smp
 
+from config import global_config
+
 
 def build_unet(device):
     """
@@ -23,11 +25,12 @@ def build_unet(device):
     """
     # 'resnet34' 是一个常用的骨干网络，可以根据情况换成其他的网络。
     # 'imagenet' 表示使用在 ImageNet 上预训练的权重来初始化骨干网络
+
     model = smp.Unet(
-        encoder_name="resnet34",  # 选择主干网络
-        encoder_weights="imagenet",  # 使用预训练权重，不要从零开始随机初始化骨干网络的权重，而是直接加载已经在 ImageNet 数据集上训练好的权重
-        in_channels=3,  # 输入通道数 (RGB 图像为 3)
-        classes=1,  # 类别数 (例如，只分割水体，背景为0，水体为1，则为1)
+        encoder_name=global_config["vars"]["encoder"],  # 选择主干网络
+        encoder_weights=global_config["vars"]["encoder_weights"],  # 使用预训练权重，使用 ImageNet 数据集上训练好的权重
+        in_channels=global_config["vars"]["num_channels"],  # 输入通道数 (RGB 图像为 3)
+        classes=global_config["vars"]["num_classes"],  # 类别数 (例如，只分割水体，背景为0，水体为1，则为1)
     )
 
     # 将模型移动到指定设备 (CPU or GPU)
@@ -36,12 +39,18 @@ def build_unet(device):
     return model
 
 
-# 只有当这个脚本被直接运行时，才执行下面的代码。如果这个脚本被其他文件作为模块导入，下面的代码则不会执行。
-if __name__ == '__main__':
-    # 测试代码，确保模型可以被正确构建
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = build_unet(device)
-    dummy_input = torch.randn(2, 3, 256, 256).to(device)  # (batch_size（表示一次性给模型喂入 2 张图片）, channels, H（图片高）, W（图片宽）)
+if __name__ == "__main__":
+
+    device = torch.device(global_config["vars"]["device"])
+
+    model = build_unet(device=device)
+    dummy_input = torch.randn(
+        global_config["vars"]["img_num"],
+        global_config["vars"]["num_channels"],
+        global_config["vars"]["img_size"],
+        global_config["vars"]["img_size"],
+        # (img_num（表示一次性给模型喂入 2 张图片）, num_channels, img_size（图片高）, img_size（图片宽）)
+    ).to(device=device)
     output = model(dummy_input)
     print(f"模型构建成功!")
     print(f"输入尺寸: {dummy_input.shape}")

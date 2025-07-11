@@ -34,3 +34,4 @@ vars:
   predict_image: "data/test/images/L19-11.tif" # 用于预测的影像文件
   predict_patch_size: 512 # 每次处理的小块尺寸 (像素)，可根据显存大小调整
   predict_overlap_rate: 0.25 # 滑窗重叠率，建议0.25 (即25%的重叠)
+  predict_strip_height: 512

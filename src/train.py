@@ -4,8 +4,8 @@
 """
 train.py
 
-模型训练。
-此版本已更新，支持通过命令行参数覆盖YAML配置。
+模型训练
+
 Author he.cl
 Date 2025-06-25
 """
@@ -38,7 +38,7 @@ def train_one_epoch(model, dataloader, optimizer, loss_fn, device, logger):
         masks = masks.float().to(device)  # loss 函数可能需要 float 类型
 
         # 前向传播
-        optimizer.zero_grad()  # 清空上一轮梯度
+        optimizer.zero_grad()  # 清空上一轮
         outputs = model(images)  # 模型进行预测
 
         # 计算损失

@@ -4,7 +4,8 @@
 """
 data_loader.py
 
-自定义的数据集加载器 (Dataset Loader)
+自定义数据集加载器
+
 Author he.cl
 Date 2025-06-25
 """
@@ -106,4 +107,4 @@ class RemoteSensingDataset(Dataset):
         # ToTensorV2 已经处理了图像的维度顺序 (H, W, C) -> (C, H, W)
         # 掩码需要增加一个通道维度以匹配模型输出 (H, W) -> (1, H, W)
         # 对于 BCEWithLogitsLoss，mask 需要是 float 类型
-        return image, torch.from_numpy(mask).unsqueeze(0).float()
+        return image, mask.unsqueeze(0).float()

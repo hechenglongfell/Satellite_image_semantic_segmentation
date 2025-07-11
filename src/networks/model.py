@@ -4,8 +4,7 @@
 """
 model.py
 
-定义用于图像分割的模型构建函数。
-主要功能是利用 segmentation_models_pytorch 库快速构建一个 U-Net 模型。可以方便地替换骨干网络并加载预训练权重。
+定义模型构建函数,主要功能是利用 segmentation_models_pytorch 库快速构建一个 U-Net 模型。可以方便地替换骨干网络并加载预训练权重。
 
 Author he.cl
 Date 2025-06-25

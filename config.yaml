@@ -13,7 +13,6 @@ paths:
 # 2. 参数配置
 vars:
   device: "cuda" # 'cpu' or 'cuda' - edit according to your device
-
   architecture: "Unet" # 分割模型架构，例如 Unet, UnetPlusPlus, DeepLabV3+
   encoder: "resnet34"  # 骨干网络 (encoder)
   encoder_weights: "imagenet"  # 预训练权重来源
@@ -29,6 +28,7 @@ vars:
   num_classes: 1  # 类别数量 (对于二元分割，通常是 1)
   mean: [0.485, 0.456, 0.406]  # 数据标准化均值 (使用ImageNet的预训练权重时常用)
   std: [0.229, 0.224, 0.225]   # 数据标准化标准差
+  class_weights: [] 
 
   predict_model: "weights/best_model_Unet_resnet34_20250710_162544.pth"   # 用于预测的模型权重文件
   predict_image: "data/test/images/L19-11.tif" # 用于预测的影像文件

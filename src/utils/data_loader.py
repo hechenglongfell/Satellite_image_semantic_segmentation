@@ -167,7 +167,7 @@ class DatasetStatistics:
                 stats["class_weights"] = np.array(stats["class_weights"])
                 return stats
 
-            return self._calculate_and_save_stats(image_files, current_fingerprint)
+        return self._calculate_and_save_stats(image_files, current_fingerprint)
 
     def _calculate_and_save_stats(self, image_files, fingerprint):
         """

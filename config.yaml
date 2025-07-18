@@ -25,7 +25,7 @@ vars:
   img_num: 2  # 训练和预测时一次喂给模型的图片张数
   img_size: 256  # 训练和预测时图像要调整到的尺寸
   num_channels: 3  # 图像通道数
-  num_classes: 1  # 类别数量 (对于二元分割，通常是 1)
+  num_classes: 1  # 二分类任务: 设置 num_classes: 1; 多分类任务: 设置 num_classes: N (N > 1，N是类别总数,背景也算1类别)
   mean: [0.485, 0.456, 0.406]  # 数据标准化均值 (使用ImageNet的预训练权重时常用)
   std: [0.229, 0.224, 0.225]   # 数据标准化标准差
   class_weights: [] 

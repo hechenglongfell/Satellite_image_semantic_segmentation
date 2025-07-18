@@ -86,11 +86,20 @@ def main(config):
     """
     # --- 1. 设置计算设备 ---
     device = torch.device(config["vars"]["device"])
+    architecture = config["vars"]["architecture"]
+    encoder = config["vars"]["encoder"]
+    learning_rate = config["vars"]["learning_rate"]
+    batch_size = config["vars"]["batch_size"]
+    epochs = config["vars"]["epochs"]
+    mean = config["vars"]["mean"]
+    std = config["vars"]["std"]
+    class_weights = config["vars"]["class_weights"]
+    num_classes = (config["vars"]["num_classes"],)
 
     # --- 2. 计算训练集统计信息 ---
     stats_calculator = DatasetStatistics(
         data_dir=config["paths"]["train_dir"],
-        num_classes=config["vars"]["num_classes"],
+        num_classes=num_classes,
         num_bands=config["vars"]["num_bands"],
     )
     # 更新到配置字典（内存）中。
@@ -99,25 +108,27 @@ def main(config):
     # 记录本次训练超参数配置
     logger.info("--- 训练超参数配置 ---")
     logger.info(f"计算设备: {device}")
-    logger.info(f"模型架构: {config['vars']['architecture']}")
-    logger.info(f"骨干网络: {config['vars']['encoder']}")
-    logger.info(f"初始学习率: {config['vars']['learning_rate']}")
-    logger.info(f"批次大小: {config['vars']['batch_size']}")
-    logger.info(f"训练轮次: {config['vars']['epochs']}")
-    logger.info(f"均值(Mean): {config['vars']['mean']}")
-    logger.info(f"标准差(Std): {config['vars']['std']}")
-    logger.info(f"类别权重(class_weights): {config['vars']['class_weights']}")
+    logger.info(f"模型架构: {architecture}")
+    logger.info(f"骨干网络: {encoder}")
+    logger.info(f"初始学习率: {learning_rate}")
+    logger.info(f"批次大小: {batch_size}")
+    logger.info(f"训练轮次: {epochs}")
+    logger.info(f"任务类型(num_classes): {num_classes}")
+    logger.info(f"均值(Mean): {mean}")
+    logger.info(f"标准差(Std): {std}")
+    logger.info(f"类别权重(class_weights): {num_classes}")
     logger.info("------------------------------------------------")
 
     # --- 3. 准备数据 ---
     train_dataset = MyDataLoader(
         data_dir=config["paths"]["train_dir"],
         num_bands=config["vars"]["num_bands"],
+        num_classes=num_classes,
         transform=get_train_transforms(config),
     )
     train_loader = DataLoader(
         train_dataset,
-        batch_size=config["vars"]["batch_size"],
+        batch_size=batch_size,
         shuffle=True,
         num_workers=4,
         pin_memory=True,
@@ -126,11 +137,12 @@ def main(config):
     val_dataset = MyDataLoader(
         data_dir=config["paths"]["val_dir"],
         num_bands=config["vars"]["num_bands"],
+        num_classes=num_classes,
         transform=get_val_transforms(config),
     )
     val_loader = DataLoader(
         val_dataset,
-        batch_size=config["vars"]["batch_size"],
+        batch_size=batch_size,
         shuffle=False,
         num_workers=4,
         pin_memory=True,
@@ -142,15 +154,26 @@ def main(config):
     model = build_unet(device=device, config=config)
 
     # todo :完善损失函数
-    pos_weight_tensor = None
-    class_weights = config["vars"]["class_weights"]
-    pos_weight_tensor = torch.tensor([class_weights], device=device)
-    loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight_tensor)
-    optimizer = optim.Adam(model.parameters(), lr=config["vars"]["learning_rate"])
+
+    if num_classes == 1:
+        # 二分类任务
+        pos_weight = torch.tensor(class_weights, device=device).float() if class_weights else None
+        loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        logger.info(f"任务类型: 二分类")
+        if pos_weight is not None:
+            logger.info(f"Positive class weight: {pos_weight.item()}")
+    else:
+        # 多分类任务
+        weight = torch.tensor(class_weights, device=device).float() if class_weights else None
+        loss_fn = torch.nn.CrossEntropyLoss(weight=weight)
+        logger.info(f"任务类型: 多分类,共 {num_classes} 类")
+        if weight is not None:
+            logger.info(f"Class weights: {weight.cpu().numpy()}")
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     # --- 5. 训练循环 ---
     timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    model_name = f"{config['vars']['architecture']}_{config['vars']['encoder']}"
+    model_name = f"{num_classes}_{num_classes}"
     save_dir = config["paths"]["output_dir"]
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, f"best_model_{model_name}_{timestamp_str}.pth")
@@ -158,8 +181,8 @@ def main(config):
     best_val_loss = float("inf")
     model.train()  # 确保模型在训练前处于训练模式
 
-    for epoch in range(config["vars"]["epochs"]):
-        logger.info(f"--- 开始第 {epoch + 1}/{config['vars']['epochs']} epoch 训练！ ---")
+    for epoch in range(epochs):
+        logger.info(f"--- 开始第 {epoch + 1}/{epochs} epoch 训练！ ---")
 
         train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, device, logger)
         val_loss = evaluate(model, val_loader, loss_fn, device, logger)

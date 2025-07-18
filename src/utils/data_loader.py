@@ -23,14 +23,17 @@ import rasterio
 
 
 class MyDataLoader(Dataset):
-    def __init__(self, data_dir, num_bands=3, transform=None):
+    def __init__(self, data_dir: str, num_classes: int, num_bands: int = 3, transform=None):
         """
         Args:
-            data_dir (string): 包含 images 和 masks 文件夹的目录。
-            transform (callable, optional): 应用于样本的可选变换。
+            data_dir (str): 包含 images 和 masks 文件夹的目录。
+            num_classes (int): 数据集中的类别总数
+            num_bands (int): 影像的波段数。
+            transform (Optional[Callable], optional): 应用于样本的可选变换 (通常是 albumentations.Compose 对象)。默认为 None
         """
         self.image_dir = os.path.join(data_dir, "images")
         self.mask_dir = os.path.join(data_dir, "masks")
+        self.num_classes = num_classes
         self.num_bands = num_bands
         self.transform = transform
 
@@ -84,14 +87,21 @@ class MyDataLoader(Dataset):
             print(f"错误: 在索引 {idx} 处加载图像或掩码失败: {e}")
             return None, None
 
-        mask[mask == 255] = 1
+        if self.num_classes == 1:
+            # 二分类任务：将所有非零值（无论是 1 还是 255）都归一化为 1,兼容 (0, 1) 和 (0, 255) 两种格式的掩码
+            mask[mask > 0] = 1
 
         if self.transform:
             augmented = self.transform(image=image, mask=mask)
             image = augmented["image"]
             mask = augmented["mask"]
 
-        return image, mask.unsqueeze(0).float()
+        if self.num_classes == 1:
+            # 二分类返回 [1, H, W] 的 float 张量
+            return image, mask.unsqueeze(0).float()
+        else:
+            # 多分类返回 [H, W] 的 long 张量
+            return image, mask.long()
 
 
 class DatasetStatistics:

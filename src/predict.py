@@ -64,6 +64,7 @@ def main(config):
     strip_height = config["vars"]["predict_strip_height"]
     mean = config["vars"]["mean"]
     std = config["vars"]["std"]
+    num_classes = config["vars"]["num_classes"]
 
     logger.info("--- 预测任务开始！ ---")
     logger.info(f"使用模型: {weights_path}")
@@ -133,7 +134,11 @@ def main(config):
                     read_y_end = min(height, y_write_start + current_write_height + patch_size)
                     read_height = read_y_end - read_y_start
 
-                    strip_prediction_acc = np.zeros((read_height, width), dtype=np.float32)
+                    if num_classes == 1:
+                        strip_prediction_acc = np.zeros((read_height, width), dtype=np.float32)
+                    else:
+                        strip_prediction_acc = np.zeros((num_classes, read_height, width), dtype=np.float32)
+
                     strip_weight_acc = np.zeros((read_height, width), dtype=np.float32)
 
                     relevant_y_coords = [y for y in y_coords if y < read_y_end and y + patch_size > read_y_start]
@@ -163,7 +168,12 @@ def main(config):
                             with torch.no_grad():
                                 output = model(input_tensor)
 
-                            probs = torch.sigmoid(output).cpu().numpy().squeeze()
+                            if num_classes == 1:
+                                # 二分类：Sigmoid 激活，累加概率
+                                probs = torch.sigmoid(output).cpu().numpy().squeeze()
+                            else:
+                                # 多分类：Softmax 激活，累加各类别概率
+                                probs = torch.softmax(output, dim=1).cpu().numpy().squeeze(0)
 
                             y_start_in_strip = y_start - read_y_start
 
@@ -182,12 +192,23 @@ def main(config):
                             strip_weight_acc[y_slice, x_slice] = new_weight_value
 
                     strip_weight_acc[strip_weight_acc == 0] = 1e-6
+
                     final_strip = strip_prediction_acc / strip_weight_acc
-
                     write_slice_y_start = y_write_start - read_y_start
-                    output_data_slice = final_strip[write_slice_y_start : write_slice_y_start + current_write_height, :]
-                    output_data_uint8 = (output_data_slice * 255).astype(rasterio.uint8)
 
+                    if num_classes == 1:
+                        final_strip = strip_prediction_acc / strip_weight_acc
+                        output_data_slice = final_strip[
+                            write_slice_y_start : write_slice_y_start + current_write_height, :
+                        ]
+                        output_data_uint8 = (output_data_slice * 255).astype(rasterio.uint8)
+                    else:
+                        final_strip_probs = strip_prediction_acc / strip_weight_acc[np.newaxis, :, :]
+                        final_strip_class = np.argmax(final_strip_probs, axis=0)
+                        output_data_slice = final_strip_class[
+                            write_slice_y_start : write_slice_y_start + current_write_height, :
+                        ]
+                        output_data_uint8 = output_data_slice.astype(rasterio.uint8)
                     write_window = Window(0, y_write_start, width, current_write_height)
                     dst.write(output_data_uint8, window=write_window, indexes=1)
 

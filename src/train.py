@@ -84,7 +84,10 @@ def main(config):
     """
     主训练函数，接收配置字典作为参数。
     """
-    # --- 1. 设置计算设备 ---
+    # torch.backends.cudnn.benchmark = False
+    # torch.backends.cudnn.deterministic = True
+
+    # --- 1. 读取配置信息 ---
     device = torch.device(config["vars"]["device"])
     architecture = config["vars"]["architecture"]
     encoder = config["vars"]["encoder"]
@@ -94,7 +97,7 @@ def main(config):
     mean = config["vars"]["mean"]
     std = config["vars"]["std"]
     class_weights = config["vars"]["class_weights"]
-    num_classes = (config["vars"]["num_classes"],)
+    num_classes = config["vars"]["num_classes"]
 
     # --- 2. 计算训练集统计信息 ---
     stats_calculator = DatasetStatistics(

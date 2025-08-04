@@ -14,7 +14,7 @@ paths:
 vars:
   device: "cuda" # 'cpu' or 'cuda' - edit according to your device
   architecture: "Unet" # 分割模型架构，例如 Unet, UnetPlusPlus, DeepLabV3+
-  encoder: "resnet34"  # 骨干网络 (encoder)
+  encoder: "resnet152"  # 骨干网络 (encoder) https://github.com/qubvel-org/segmentation_models.pytorch/blob/main/docs/encoders.rst
   encoder_weights: "imagenet"  # 预训练权重来源
   activation: null # 激活函数 (对于BCEWithLogitsLoss, 设为None。若要直接输出概率图，可设为'sigmoid')
   learning_rate: 0.0001  # 学习率

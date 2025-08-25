@@ -27,7 +27,7 @@ from networks.model import build_unet
 logger = setup_logger(__name__, "train.log")
 
 
-def train_one_epoch(model, dataloader, optimizer, loss_fn, device, logger):
+def train_one_epoch(model, dataloader, optimizer, loss_fn, device):
     """
     在单个epoch上训练模型
     """
@@ -58,7 +58,7 @@ def train_one_epoch(model, dataloader, optimizer, loss_fn, device, logger):
     return avg_loss
 
 
-def evaluate(model, dataloader, loss_fn, device, logger):
+def evaluate(model, dataloader, loss_fn, device):
     """
     在验证集上评估模型
     """
@@ -105,7 +105,7 @@ def main(config):
         num_classes=num_classes,
         num_bands=config["vars"]["num_bands"],
     )
-    # 更新到配置字典（内存）中。
+    # 更新到配置字典。
     config["vars"].update(stats_calculator.get_stats())
 
     # 记录本次训练超参数配置
@@ -119,7 +119,7 @@ def main(config):
     logger.info(f"任务类型(num_classes): {num_classes}")
     logger.info(f"均值(Mean): {mean}")
     logger.info(f"标准差(Std): {std}")
-    logger.info(f"类别权重(class_weights): {num_classes}")
+    logger.info(f"类别权重(class_weights): {class_weights}")
     logger.info("------------------------------------------------")
 
     # --- 3. 准备数据 ---
@@ -176,7 +176,7 @@ def main(config):
 
     # --- 5. 训练循环 ---
     timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-    model_name = f"{num_classes}_{num_classes}"
+    model_name = f"{architecture}_{encoder}"
     save_dir = config["paths"]["output_dir"]
     os.makedirs(save_dir, exist_ok=True)
     save_path = os.path.join(save_dir, f"best_model_{model_name}_{timestamp_str}.pth")
@@ -187,8 +187,8 @@ def main(config):
     for epoch in range(epochs):
         logger.info(f"--- 开始第 {epoch + 1}/{epochs} epoch 训练！ ---")
 
-        train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, device, logger)
-        val_loss = evaluate(model, val_loader, loss_fn, device, logger)
+        train_loss = train_one_epoch(model, train_loader, optimizer, loss_fn, device)
+        val_loss = evaluate(model, val_loader, loss_fn, device)
 
         logger.info(f"第 {epoch + 1} epoch 结束. 训练损失: {train_loss:.4f}, 验证损失: {val_loss:.4f}")
 

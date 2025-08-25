@@ -4,8 +4,7 @@
 """
 offline_augment.py
 
-离线数据增强脚本: 读取源目录中的图像和掩码，对每张图像生成指定数量的增强版本，并将结果保存到一个新的目标目录中。
-适用于数据集较小，预先生成所有增强样本的场景。
+离线数据增强。适用于数据集较小，预先生成所有增强样本的场景。
 
 Author: he.cl
 Date: 2025-07-11
@@ -84,32 +83,20 @@ def augment_and_save(source_dir, dest_dir, num_augmentations_per_image=10):
             print(f"警告：跳过图像 '{img_path}'，因找不到对应的掩码。")
             continue
 
-        # 使用OpenCV读取图像和掩码
-        # cv2.IMREAD_COLOR 读取为BGR格式
         image = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        # cv2.IMREAD_UNCHANGED 读取单通道灰度图
         mask = cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)
-
-        # 将图像从BGR转换为RGB，以匹配Pillow和大多数库的习惯
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-        # 获取不带扩展名的原始文件名
         base_filename = os.path.splitext(os.path.basename(img_path))[0]
 
-        # 循环生成指定数量的增强版本
         for i in range(num_augmentations_per_image):
-            # 应用增强
+
             augmented = transforms(image=image, mask=mask)
             aug_image = augmented["image"]
             aug_mask = augmented["mask"]
-
-            # 构建新的文件名
             new_filename = f"{base_filename}_aug_{i+1}.tif"
             dest_img_path = os.path.join(dest_images_dir, new_filename)
             dest_mask_path = os.path.join(dest_masks_dir, new_filename)
 
-            # 保存增强后的图像和掩码
-            # 将图像从RGB转回BGR以供OpenCV保存
             cv2.imwrite(dest_img_path, cv2.cvtColor(aug_image, cv2.COLOR_RGB2BGR))
             cv2.imwrite(dest_mask_path, aug_mask)
 
